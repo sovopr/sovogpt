@@ -1,4 +1,4 @@
-# --- IGNORE MODEL WEIGHTS (Huge files) ---
+# --- IGNORE MODEL WEIGHTS ---
 *.safetensors
 *.bin
 *.pt
@@ -7,22 +7,33 @@
 *.h5
 *.gguf
 
-# --- IGNORE SYSTEM & ENV FOLDERS (Junk) ---
-bin/
-lib/
-include/
-share/
-conda-meta/
-man/
+# --- IGNORE SYSTEM ---
 __pycache__/
 .DS_Store
 .vscode/
-
-# --- IGNORE SECRETS ---
-ssl/
-keys/
+venv/
 .env
 
-# --- IGNORE CACHE & DATA DUMPS ---
-cached_*
-sovogpt_checkpoints/
+# --- IGNORE OUTPUT FOLDERS ---
+sovogpt_agent_model/
+sovogpt_balanced_agent/
+sovogpt_chat_v1/
+sovogpt_complete/
+sovogpt_cortex/
+sovogpt_final/
+sovogpt_groundbreaking/
+sovogpt_instruct/
+sovogpt_router/
+sovogpt_smart/
+sovogpt_smart_v2/
+sovogpt_v5_safe/
+checkpoint-*/
+
+# --- DATASETS ---
+*.txt
+# Exceptions (Files we NEED)
+!requirements.txt
+!router_data.json
+!config.json
+!sovogpt_tokenizer.json
+!sovogpt_tokenizer-vocab.json
