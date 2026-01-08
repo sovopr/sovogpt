@@ -37,3 +37,4 @@ checkpoint-*/
 !config.json
 !sovogpt_tokenizer.json
 !sovogpt_tokenizer-vocab.json
+*.lock
