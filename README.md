@@ -10,10 +10,27 @@ SovoGPT is an experimental project to build and fine-tune Large Language Models 
 
 ## 📂 Project Structure
 ```
-├── src/               # Core configuration and inference logic
-├── scripts/           # Training, Fine-tuning, and Data Generation scripts
-├── data/              # Sample datasets and configuration JSONs
-└── README.md
+Directory structure:
+└── sovopr-sovogpt/
+    ├── README.md
+    ├── requirements.txt
+    ├── data/
+    │   └── router_data.json
+    ├── scripts/
+    │   ├── 2_train_balanced.py
+    │   ├── 2_train_pro.py
+    │   ├── 2_train_router.py
+    │   ├── fine_tune.py
+    │   ├── fine_tune_final.py
+    │   ├── mix_data.py
+    │   ├── prepare_data.py
+    │   ├── train.py
+    │   ├── train_agent.py
+    │   └── train_tokenizer.py
+    └── src/
+        ├── chat.py
+        └── config.py
+
 ```
 
 ## 🛠️ Installation
