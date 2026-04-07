@@ -10,27 +10,41 @@ SovoGPT is an experimental project to build and fine-tune Large Language Models 
 
 ## 📂 Project Structure
 ```
-Directory structure:
-└── sovopr-sovogpt/
-    ├── README.md
-    ├── requirements.txt
-    ├── data/
-    │   └── router_data.json
-    ├── scripts/
-    │   ├── 2_train_balanced.py
-    │   ├── 2_train_pro.py
-    │   ├── 2_train_router.py
-    │   ├── fine_tune.py
-    │   ├── fine_tune_final.py
-    │   ├── mix_data.py
-    │   ├── prepare_data.py
-    │   ├── train.py
-    │   ├── train_agent.py
-    │   └── train_tokenizer.py
-    └── src/
-        ├── chat.py
-        └── config.py
-
+sovogpt/
+├── .gitignore
+├── README.md
+├── agent_training_data.txt
+├── balanced_training.txt
+├── chat_boost_training_data.txt
+├── clean_chat_data.txt
+├── data/
+│   └── router_data.json
+├── final_mix.txt
+├── massive_training_data.txt
+├── odinglish_prompt_answer_long_220.csv
+├── odinglish_prompt_answer_summary.csv
+├── odinglish_prompt_answer_summary.md
+├── real_chat_dataset.txt
+├── requirements.txt
+├── result.txt
+├── scripts/
+│   ├── prepare_odinglish_data.py
+│   ├── run_system.py
+│   ├── test_eval.py
+│   ├── train_agent.py
+│   └── train_tokenizer.py
+├── sovogpt_tokenizer-merges.txt
+├── sovogpt_tokenizer-vocab.json
+├── sovogpt_tokenizer.json
+├── src/
+│   ├── chat.py
+│   ├── chat_agent.py
+│   ├── chat_internet.py
+│   └── config.py
+├── synthetic_chat.txt
+├── system_error.log
+└── train_data.txt
+```
 ```
 
 ## 🛠️ Installation
