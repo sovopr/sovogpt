@@ -6,11 +6,11 @@ os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
 os.environ.setdefault("XDG_CACHE_HOME", "/tmp")
 
 import torch
+from torch.utils.data import Dataset
+from torch.nn.utils.rnn import pad_sequence
 from transformers import (
-    DataCollatorForLanguageModeling,
     LlamaForCausalLM,
     PreTrainedTokenizerFast,
-    TextDataset,
     Trainer,
     TrainingArguments,
 )
@@ -19,6 +19,59 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from src.config import get_model_and_tokenizer
 
+
+class ChatMLDataset(Dataset):
+    def __init__(self, file_path, tokenizer, max_length=256):
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = f.read()
+        conversations = [c.strip() for c in data.split("<|im_start|>system\n") if c.strip()]
+        self.examples = []
+        for c in conversations:
+            text = "<|im_start|>system\n" + c
+            parts = text.split("<|im_start|>assistant\n")
+            if len(parts) == 2:
+                prompt = parts[0] + "<|im_start|>assistant\n"
+                response = parts[1]
+                prompt_ids = tokenizer(prompt, add_special_tokens=False)["input_ids"]
+                resp_ids = tokenizer(response, add_special_tokens=False)["input_ids"]
+                
+                input_ids = prompt_ids + resp_ids
+                labels = [-100]*len(prompt_ids) + resp_ids
+                
+                if len(input_ids) > max_length:
+                    input_ids = input_ids[:max_length]
+                    labels = labels[:max_length]
+                    
+                self.examples.append({
+                    "input_ids": torch.tensor(input_ids, dtype=torch.long),
+                    "labels": torch.tensor(labels, dtype=torch.long),
+                    "attention_mask": torch.ones(len(input_ids), dtype=torch.long)
+                })
+                
+    def __len__(self):
+        return len(self.examples)
+        
+    def __getitem__(self, idx):
+        return self.examples[idx]
+
+class ChatDataCollator:
+    def __init__(self, tokenizer):
+        self.tokenizer = tokenizer
+        
+    def __call__(self, features):
+        input_ids = [f["input_ids"] for f in features]
+        labels = [f["labels"] for f in features]
+        attention_mask = [f["attention_mask"] for f in features]
+        
+        input_ids = pad_sequence(input_ids, batch_first=True, padding_value=self.tokenizer.pad_token_id)
+        labels = pad_sequence(labels, batch_first=True, padding_value=-100)
+        attention_mask = pad_sequence(attention_mask, batch_first=True, padding_value=0)
+        
+        return {
+            "input_ids": input_ids,
+            "labels": labels,
+            "attention_mask": attention_mask
+        }
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train Sovogpt with a single optimizer strategy.")
@@ -54,8 +107,8 @@ def main() -> None:
         model, tokenizer = get_model_and_tokenizer()
     model.to(device_name)
 
-    dataset = TextDataset(tokenizer=tokenizer, file_path=args.data, block_size=128)
-    collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
+    dataset = ChatMLDataset(file_path=args.data, tokenizer=tokenizer, max_length=256)
+    collator = ChatDataCollator(tokenizer=tokenizer)
 
     # Keep one clear optimizer path: AdamW (torch implementation).
     train_args = TrainingArguments(
