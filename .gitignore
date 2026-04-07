@@ -26,3 +26,5 @@ keys/
 # --- IGNORE CACHE & DATA DUMPS ---
 cached_*
 sovogpt_checkpoints/
+runs/
+sovogpt_agent_model*/
