@@ -1,0 +1,28 @@
+# --- IGNORE MODEL WEIGHTS (Huge files) ---
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.gguf
+
+# --- IGNORE SYSTEM & ENV FOLDERS (Junk) ---
+bin/
+lib/
+include/
+share/
+conda-meta/
+man/
+__pycache__/
+.DS_Store
+.vscode/
+
+# --- IGNORE SECRETS ---
+ssl/
+keys/
+.env
+
+# --- IGNORE CACHE & DATA DUMPS ---
+cached_*
+sovogpt_checkpoints/
