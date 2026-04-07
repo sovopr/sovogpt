@@ -12,6 +12,8 @@ tokenizer.train(files=["train_data.txt"], vocab_size=16000, min_frequency=2, spe
     "</s>",
     "<unk>",
     "<mask>",
+    "<|im_start|>",
+    "<|im_end|>",
 ])
 
 # FIX: Save as a single JSON file instead of separate vocab/merges

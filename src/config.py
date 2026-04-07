@@ -8,7 +8,8 @@ def get_model_and_tokenizer():
         bos_token="<s>",
         eos_token="</s>",
         unk_token="<unk>",
-        pad_token="<pad>"
+        pad_token="<pad>",
+        additional_special_tokens=["<|im_start|>", "<|im_end|>"]
     )
     tokenizer.pad_token = "<pad>"
 

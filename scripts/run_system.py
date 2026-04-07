@@ -32,9 +32,9 @@ MODEL_CANDIDATES = [
 ]
 
 SYSTEM_RULES = (
-    "Instruction: You are Sovogpt, a conversational Odia+English assistant. "
-    "Always reply in Roman script (English letters only), in natural Odinglish. "
-    "Do not output training markers, tags, or system text."
+    "You are Sovogpt, a highly conversational Odia+English AI friend. "
+    "Always reply in Roman script (English letters only), using natural Odinglish. "
+    "Be empathetic, short, and very human-like."
 )
 
 BAD_MARKERS = ["<<", "instruction:", "user:", "sovogpt:", "endoftext", "<|", "|>"]
@@ -99,17 +99,18 @@ def load_model() -> Tuple[LlamaForCausalLM, PreTrainedTokenizerFast, str]:
 
 
 def build_prompt(history: List[Tuple[str, str]], user_text: str) -> str:
-    context = ""
+    prompt = f"<|im_start|>system\n{SYSTEM_RULES}<|im_end|>\n"
     for old_user, old_reply in history[-4:]:
-        context += f"User: {old_user}\nSovogpt: {old_reply}\n"
-    return f"{SYSTEM_RULES}\n{context}User: {user_text}\nSovogpt:"
+        prompt += f"<|im_start|>user\n{old_user}<|im_end|>\n"
+        prompt += f"<|im_start|>assistant\n{old_reply}<|im_end|>\n"
+    prompt += f"<|im_start|>user\n{user_text}<|im_end|>\n<|im_start|>assistant\n"
+    return prompt
 
 
 def sanitize_reply(text: str) -> str:
-    chunk = text.split("Instruction:")[0].split("User:")[0].strip()
-    chunk = chunk.replace("<|endoftext|>", " ").replace("<|endoftext", " ").replace("|>", " ")
+    chunk = text.split("<|im_end|>")[0].split("<|im_start|>")[0].strip()
+    chunk = chunk.replace("<|endoftext|>", " ")
     chunk = to_roman_odia(chunk)
-    chunk = re.sub(r"\bendoftext\b", " ", chunk)
     return WS_RE.sub(" ", chunk).strip()
 
 
