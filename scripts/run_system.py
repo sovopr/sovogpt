@@ -25,9 +25,6 @@ NON_ROMAN_RE = re.compile(r"[^a-z0-9 .,?!'/-]+")
 WS_RE = re.compile(r"\s+")
 
 MODEL_CANDIDATES = [
-    "./sovogpt_agent_model_chatfix",
-    "./sovogpt_agent_model_tuned_v2",
-    "./sovogpt_agent_model_tuned",
     "./sovogpt_agent_model",
 ]
 
@@ -114,94 +111,6 @@ def sanitize_reply(text: str) -> str:
     return WS_RE.sub(" ", chunk).strip()
 
 
-def repetition_ratio(words: List[str]) -> float:
-    if not words:
-        return 1.0
-    return 1.0 - (len(set(words)) / len(words))
-
-
-def token_words(text: str) -> List[str]:
-    return re.findall(r"[a-z0-9]+", text.lower())
-
-
-def score_candidate(user_text: str, reply: str) -> float:
-    if not reply:
-        return -100.0
-
-    rlow = reply.lower()
-    score = 0.0
-
-    if any(m in rlow for m in BAD_MARKERS):
-        score -= 8.0
-
-    words = reply.split()
-    if len(words) < 3:
-        score -= 2.0
-    elif len(words) <= 40:
-        score += 1.0
-    else:
-        score -= 1.0
-
-    rep = repetition_ratio(words)
-    score -= rep * 3.0
-
-    user_tokens = {w for w in token_words(user_text) if len(w) > 2 and w not in STOPWORDS}
-    reply_tokens = {w for w in token_words(reply) if len(w) > 2 and w not in STOPWORDS}
-    overlap = len(user_tokens & reply_tokens)
-    score += min(overlap * 0.25, 1.5)
-    if user_tokens and overlap == 0:
-        score -= 1.8
-
-    if any(k in user_text for k in ["naa", "nama", "name"]) and not any(
-        k in rlow for k in ["mora", "naa", "nama", "name", "sovogpt"]
-    ):
-        score -= 1.5
-
-    weather_query = any(k in user_text for k in ["temp", "temperature", "weather", "paga", "tapamatra"])
-    if weather_query and not any(k in rlow for k in ["temp", "weather", "garam", "thanda", "climate", "humidity"]):
-        score -= 1.6
-
-    if reply.endswith("?"):
-        score += 0.2
-
-    return score
-
-
-def generate_candidates(
-    model: LlamaForCausalLM,
-    tokenizer: PreTrainedTokenizerFast,
-    device: str,
-    prompt: str,
-) -> List[str]:
-    candidates: List[str] = []
-    for cfg in DECODE_CONFIGS:
-        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(device)
-        inputs.pop("token_type_ids", None)
-
-        with torch.no_grad():
-            out = model.generate(
-                **inputs,
-                max_new_tokens=96,
-                do_sample=True,
-                temperature=cfg["temperature"],
-                top_p=cfg["top_p"],
-                repetition_penalty=1.12,
-                pad_token_id=tokenizer.eos_token_id,
-                eos_token_id=tokenizer.eos_token_id,
-            )
-
-        full = tokenizer.decode(out[0], skip_special_tokens=True)
-        raw = full[len(prompt) :] if full.startswith(prompt) else full
-        candidates.append(sanitize_reply(raw))
-    return candidates
-
-
-def fallback_reply(user_text: str) -> str:
-    if len(user_text.split()) <= 2:
-        return "mu bujhi parili nahin, alpa detail re pacha."
-    return "bujhili, tume au alpa clear bhabe kuha, mu detail re answer debi."
-
-
 def generate_reply(
     model: LlamaForCausalLM,
     tokenizer: PreTrainedTokenizerFast,
@@ -210,25 +119,25 @@ def generate_reply(
     user_text: str,
 ) -> str:
     prompt = build_prompt(history, user_text)
-    candidates = generate_candidates(model, tokenizer, device, prompt)
-    scored = [(score_candidate(user_text, c), c) for c in candidates]
-    scored.sort(key=lambda x: x[0], reverse=True)
+    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(device)
+    inputs.pop("token_type_ids", None)
 
-    best_score, best_reply = scored[0]
-    if best_score < -0.5:
-        repair_prompt = (
-            f"{SYSTEM_RULES}\n"
-            f"User: {user_text}\n"
-            "Sovogpt: Reply directly and clearly in 1-2 lines in Odinglish."
+    with torch.no_grad():
+        out = model.generate(
+            **inputs,
+            max_new_tokens=96,
+            do_sample=True,
+            temperature=0.75,
+            top_p=0.9,
+            repetition_penalty=1.12,
+            pad_token_id=tokenizer.eos_token_id,
+            eos_token_id=tokenizer.eos_token_id,
         )
-        repair_candidates = generate_candidates(model, tokenizer, device, repair_prompt)
-        repair_scored = [(score_candidate(user_text, c), c) for c in repair_candidates]
-        repair_scored.sort(key=lambda x: x[0], reverse=True)
-        rep_score, rep_reply = repair_scored[0]
-        if rep_score >= -0.8:
-            return rep_reply
-        return fallback_reply(user_text)
-    return best_reply
+
+    # Note: skip_special_tokens=False so we can parse <|im_end|>
+    full = tokenizer.decode(out[0], skip_special_tokens=False)
+    raw = full[len(prompt) :] if full.startswith(prompt) else full
+    return sanitize_reply(raw)
 
 
 def main() -> None:

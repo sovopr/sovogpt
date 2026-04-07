@@ -15,7 +15,9 @@ from transformers import (
     TrainingArguments,
 )
 
-from config import get_model_and_tokenizer
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from src.config import get_model_and_tokenizer
 
 
 def parse_args() -> argparse.Namespace:

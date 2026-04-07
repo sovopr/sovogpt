@@ -1,0 +1,14 @@
+Matplotlib is building the font cache; this may take a moment.
+
+[Initializing Sovogpt Roman Odia Chat...]
+Loaded model: ./sovogpt_agent_model_chatfix
+Generation mode: reward-scored multi-sampling (no template hardcoding)
+Type 'quit' to exit.
+
+You: Traceback (most recent call last):
+  File "/Users/soveet/Desktop/sovogpt-main/scripts/run_system.py", line 261, in <module>
+    main()
+  File "/Users/soveet/Desktop/sovogpt-main/scripts/run_system.py", line 248, in main
+    user_raw = input("\nYou: ").strip()
+               ^^^^^^^^^^^^^^^^
+KeyboardInterrupt
