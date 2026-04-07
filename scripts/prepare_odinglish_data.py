@@ -139,7 +139,11 @@ def build_dataset(input_files: Sequence[str], max_samples: int) -> List[str]:
 
     output_rows = []
     for user, assistant in rows:
-        output_rows.append(f"{SYSTEM_INSTRUCTION}\nUser: {user}\nSovogpt: {assistant}\n<|endoftext|>\n")
+        output_rows.append(
+            f"<|im_start|>system\n{SYSTEM_INSTRUCTION}<|im_end|>\n"
+            f"<|im_start|>user\n{user}<|im_end|>\n"
+            f"<|im_start|>assistant\n{assistant}<|im_end|>\n"
+        )
     return output_rows
 
 
