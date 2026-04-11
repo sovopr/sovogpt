@@ -1,50 +1,33 @@
 # SovoGPT: Odia Language Large Language Model
 
-SovoGPT is an experimental project to build and fine-tune Large Language Models (LLMs) specifically for the **Odia language** using consumer-grade hardware. It explores the entire pipeline from tokenizer training to instruction fine-tuning and agentic behaviors.
+SovoGPT is an experimental project to build and fine-tune Large Language Models (LLMs) specifically for the **Odia language** using consumer-grade hardware. It explores the entire pipeline from tokenizer training to instruction fine-tuning.
 
 ## 🚀 Features
 - **Custom Tokenizer:** Trained specifically on Odia text for better token efficiency.
-- **Efficient Training:** Optimized scripts for training on consumer GPUs (Mac M-series/NVIDIA RTX).
-- **Multi-Stage Pipeline:** Includes pre-training, fine-tuning, and RLHF-style alignment (Safe/Instruct modes).
-- **Agentic Capabilities:** Experimental "Router" and "Agent" models designed to handle complex queries.
+- **nanochat Engine Integration:** Shifted to a minimal, hackable GPT-2 pipeline for end-to-end training (pre-training → SFT → inference).
+- **M2 Pro Optimized:** Native MPS (Metal Performance Shaders) support for high-speed training on Mac GPUs.
+- **Odinglish Support:** Native Odia+English conversational capabilities with automated transliteration.
 
 ## 📂 Project Structure
 ```
 sovogpt/
-├── .gitignore
 ├── README.md
-├── agent_training_data.txt
-├── balanced_training.txt
-├── chat_boost_training_data.txt
-├── clean_chat_data.txt
-├── data/
-│   └── router_data.json
-├── final_mix.txt
-├── massive_training_data.txt
-├── odinglish_prompt_answer_long_220.csv
-├── odinglish_prompt_answer_summary.csv
-├── odinglish_prompt_answer_summary.md
-├── real_chat_dataset.txt
+├── TECH_STACK.md
 ├── requirements.txt
-├── result.txt
+├── nanochat_engine/      # Core GPT-2 training engine
+├── data/                 # Training datasets (JSONL/TXT)
+│   ├── odinglish_conversations.jsonl
+│   └── odinglish_pretrain.txt
+├── runs/
+│   └── odinglish.sh       # End-to-end training pipeline
 ├── scripts/
-│   ├── prepare_odinglish_data.py
-│   ├── run_system.py
-│   ├── test_eval.py
-│   ├── train_agent.py
-│   └── train_tokenizer.py
-├── sovogpt_tokenizer-merges.txt
-├── sovogpt_tokenizer-vocab.json
-├── sovogpt_tokenizer.json
-├── src/
-│   ├── chat.py
-│   ├── chat_agent.py
-│   ├── chat_internet.py
-│   └── config.py
-├── synthetic_chat.txt
-├── system_error.log
-└── train_data.txt
-```
+│   ├── convert_to_nanochat.py
+│   ├── sovogpt_chat.py    # CLI chat interface
+│   ├── sovogpt_eval.py    # Automated evaluation suite
+│   └── ... (utility scripts)
+└── src/
+    ├── chat.py
+    └── config.py
 ```
 
 ## 🛠️ Installation
@@ -58,23 +41,27 @@ sovogpt/
 2. Install dependencies:
    ```bash
    pip install -r requirements.txt
+   cd nanochat_engine && uv sync && cd ..
    ```
 
 ## 🏃‍♂️ Usage
 
-### 1. Train the Tokenizer
+### 1. Data Conversion
+Convert raw ChatML data to nanochat format:
 ```bash
-python scripts/train_tokenizer.py
+python scripts/convert_to_nanochat.py
 ```
 
-### 2. Pre-train the Base Model
+### 2. Full Pipeline (Training)
+Run the automated pre-training and SFT pipeline:
 ```bash
-python scripts/train.py
+bash runs/odinglish.sh
 ```
 
 ### 3. Chat with the Model
+Start the interactive Odinglish chat:
 ```bash
-python src/chat.py
+python scripts/sovogpt_chat.py
 ```
 
 ## 📊 Model Versions
