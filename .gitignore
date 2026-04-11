@@ -30,4 +30,5 @@ sovogpt_agent_model*/
 
 # --- NANOCHAT ---
 nanochat_engine/
-.cache/nanochat/.agents/
+.cache/nanochat/
+.agents/
