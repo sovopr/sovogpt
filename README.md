@@ -17,7 +17,8 @@ sovogpt/
 ├── nanochat_engine/      # Core GPT-2 training engine
 ├── data/                 # Training datasets (JSONL/TXT)
 │   ├── odinglish_conversations.jsonl
-│   └── odinglish_pretrain.txt
+│   ├── odinglish_pretrain.txt
+│   └── legacy/           # Historical source data
 ├── runs/
 │   └── odinglish.sh       # End-to-end training pipeline
 ├── scripts/
