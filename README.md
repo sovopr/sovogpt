@@ -71,4 +71,4 @@ python scripts/sovogpt_chat.py
 - **SovoGPT-Safe:** Aligned version to refuse harmful queries.
 
 ## 🤝 Contributing
-Contributions are welcome! Please open an issue if you encounter bugs or have datasets to share.
+Contributions are welcome! Please open an issue if you encounter bugs or have datasets to share!
