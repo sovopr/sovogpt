@@ -32,3 +32,7 @@ sovogpt_agent_model*/
 nanochat_engine/
 .cache/nanochat/
 .agents/
+.aider*
+agent_training_data.txt
+data/
+sovogpt_agent_model/

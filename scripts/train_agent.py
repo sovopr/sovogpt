@@ -21,7 +21,7 @@ from src.config import get_model_and_tokenizer
 
 
 class ChatMLDataset(Dataset):
-    def __init__(self, file_path, tokenizer, max_length=256):
+    def __init__(self, file_path, tokenizer, max_length=1024):
         with open(file_path, "r", encoding="utf-8") as f:
             data = f.read()
         conversations = [c.strip() for c in data.split("<|im_start|>system\n") if c.strip()]
@@ -29,24 +29,40 @@ class ChatMLDataset(Dataset):
         for c in conversations:
             text = "<|im_start|>system\n" + c
             parts = text.split("<|im_start|>assistant\n")
-            if len(parts) == 2:
-                prompt = parts[0] + "<|im_start|>assistant\n"
-                response = parts[1]
-                prompt_ids = tokenizer(prompt, add_special_tokens=False)["input_ids"]
-                resp_ids = tokenizer(response, add_special_tokens=False)["input_ids"]
+            if len(parts) < 2:
+                continue
                 
-                input_ids = prompt_ids + resp_ids
-                labels = [-100]*len(prompt_ids) + resp_ids
+            input_ids = []
+            labels = []
+            
+            first_prompt = parts[0] + "<|im_start|>assistant\n"
+            first_prompt_ids = tokenizer(first_prompt, add_special_tokens=False)["input_ids"]
+            input_ids.extend(first_prompt_ids)
+            labels.extend([-100] * len(first_prompt_ids))
+            
+            for i in range(1, len(parts)):
+                sub_parts = parts[i].split("<|im_end|>\n<|im_start|>user\n")
                 
-                if len(input_ids) > max_length:
-                    input_ids = input_ids[:max_length]
-                    labels = labels[:max_length]
+                resp = sub_parts[0] + "<|im_end|>\n"
+                resp_ids = tokenizer(resp, add_special_tokens=False)["input_ids"]
+                input_ids.extend(resp_ids)
+                labels.extend(resp_ids)
+                
+                if len(sub_parts) > 1:
+                    next_prompt = "<|im_start|>user\n" + sub_parts[1] + "<|im_start|>assistant\n"
+                    next_prompt_ids = tokenizer(next_prompt, add_special_tokens=False)["input_ids"]
+                    input_ids.extend(next_prompt_ids)
+                    labels.extend([-100] * len(next_prompt_ids))
                     
-                self.examples.append({
-                    "input_ids": torch.tensor(input_ids, dtype=torch.long),
-                    "labels": torch.tensor(labels, dtype=torch.long),
-                    "attention_mask": torch.ones(len(input_ids), dtype=torch.long)
-                })
+            if len(input_ids) > max_length:
+                input_ids = input_ids[:max_length]
+                labels = labels[:max_length]
+                
+            self.examples.append({
+                "input_ids": torch.tensor(input_ids, dtype=torch.long),
+                "labels": torch.tensor(labels, dtype=torch.long),
+                "attention_mask": torch.ones(len(input_ids), dtype=torch.long)
+            })
                 
     def __len__(self):
         return len(self.examples)
@@ -78,7 +94,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--data", default="agent_training_data.txt", help="Training data path")
     parser.add_argument("--output", default="./sovogpt_agent_model", help="Model output directory")
     parser.add_argument("--epochs", type=int, default=6, help="Epoch count")
-    parser.add_argument("--batch-size", type=int, default=4, help="Per-device train batch size")
+    parser.add_argument("--batch-size", type=int, default=1, help="Per-device train batch size")
     parser.add_argument(
         "--base-model",
         default="./sovogpt_agent_model",
@@ -98,10 +114,21 @@ def main() -> None:
     use_mps = device_name == "mps"
     print(f"Using device: {device_name}")
 
-    if os.path.exists(args.base_model):
+    if args.base_model and (os.path.exists(args.base_model) or "/" in args.base_model):
         print(f"Loading base model from {args.base_model}")
         model = LlamaForCausalLM.from_pretrained(args.base_model)
-        tokenizer = PreTrainedTokenizerFast.from_pretrained(args.base_model)
+        try:
+            tokenizer = PreTrainedTokenizerFast.from_pretrained(args.base_model)
+        except Exception:
+            from transformers import AutoTokenizer
+            tokenizer = AutoTokenizer.from_pretrained(args.base_model)
+            
+        special_tokens = {'additional_special_tokens': ['<|im_start|>', '<|im_end|>']}
+        if tokenizer.pad_token is None:
+            special_tokens['pad_token'] = tokenizer.eos_token
+        
+        tokenizer.add_special_tokens(special_tokens)
+        model.resize_token_embeddings(len(tokenizer))
     else:
         print("Base model not found, initializing model/tokenizer from config.py")
         model, tokenizer = get_model_and_tokenizer()
@@ -123,7 +150,7 @@ def main() -> None:
         logging_steps=50,
         optim="adamw_torch",
         lr_scheduler_type="linear",
-        use_mps_device=use_mps,
+        gradient_checkpointing=True,
         max_steps=args.max_steps,
     )
 

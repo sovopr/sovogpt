@@ -8,7 +8,7 @@ os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
 os.environ.setdefault("XDG_CACHE_HOME", "/tmp")
 
 import torch
-from transformers import LlamaForCausalLM, PreTrainedTokenizerFast
+from transformers import LlamaForCausalLM, AutoTokenizer
 
 try:
     from indic_transliteration import sanscript
@@ -29,9 +29,8 @@ MODEL_CANDIDATES = [
 ]
 
 SYSTEM_RULES = (
-    "You are Sovogpt, a highly conversational Odia+English AI friend. "
-    "Always reply in Roman script (English letters only), using natural Odinglish. "
-    "Be empathetic, short, and very human-like."
+    "Instruction: You are an Odia AI assistant. Reply in natural Odia+English "
+    "using English letters only (Roman script). Keep replies conversational."
 )
 
 BAD_MARKERS = ["<<", "instruction:", "user:", "sovogpt:", "endoftext", "<|", "|>"]
@@ -84,11 +83,11 @@ def to_roman_odia(text: str) -> str:
     return out
 
 
-def load_model() -> Tuple[LlamaForCausalLM, PreTrainedTokenizerFast, str]:
+def load_model() -> Tuple[LlamaForCausalLM, any, str]:
     for path in MODEL_CANDIDATES:
         try:
             model = LlamaForCausalLM.from_pretrained(path)
-            tokenizer = PreTrainedTokenizerFast.from_pretrained(path)
+            tokenizer = AutoTokenizer.from_pretrained(path)
             return model, tokenizer, path
         except Exception:
             continue
@@ -113,7 +112,7 @@ def sanitize_reply(text: str) -> str:
 
 def generate_reply(
     model: LlamaForCausalLM,
-    tokenizer: PreTrainedTokenizerFast,
+    tokenizer: any,
     device: str,
     history: List[Tuple[str, str]],
     user_text: str,
@@ -122,21 +121,23 @@ def generate_reply(
     inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(device)
     inputs.pop("token_type_ids", None)
 
+    im_end_id = tokenizer.convert_tokens_to_ids("<|im_end|>")
+    
     with torch.no_grad():
         out = model.generate(
             **inputs,
             max_new_tokens=96,
             do_sample=True,
-            temperature=0.75,
-            top_p=0.9,
-            repetition_penalty=1.12,
+            temperature=0.2,
+            top_p=0.85,
+            repetition_penalty=1.15,
             pad_token_id=tokenizer.eos_token_id,
-            eos_token_id=tokenizer.eos_token_id,
+            eos_token_id=im_end_id if im_end_id is not None else tokenizer.eos_token_id,
         )
 
-    # Note: skip_special_tokens=False so we can parse <|im_end|>
-    full = tokenizer.decode(out[0], skip_special_tokens=False)
-    raw = full[len(prompt) :] if full.startswith(prompt) else full
+    # Extract only the newly generated tokens
+    new_tokens = out[0][len(inputs["input_ids"][0]):]
+    raw = tokenizer.decode(new_tokens, skip_special_tokens=False)
     return sanitize_reply(raw)
 
 

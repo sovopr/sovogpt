@@ -138,12 +138,13 @@ def build_dataset(input_files: Sequence[str], max_samples: int) -> List[str]:
         rows.append((user, assistant))
 
     output_rows = []
-    for user, assistant in rows:
-        output_rows.append(
-            f"<|im_start|>system\n{SYSTEM_INSTRUCTION}<|im_end|>\n"
-            f"<|im_start|>user\n{user}<|im_end|>\n"
-            f"<|im_start|>assistant\n{assistant}<|im_end|>\n"
-        )
+    chunk_size = 5
+    for i in range(0, len(rows), chunk_size):
+        chunk = rows[i:i+chunk_size]
+        conv_text = f"<|im_start|>system\n{SYSTEM_INSTRUCTION}<|im_end|>\n"
+        for user, assistant in chunk:
+            conv_text += f"<|im_start|>user\n{user}<|im_end|>\n<|im_start|>assistant\n{assistant}<|im_end|>\n"
+        output_rows.append(conv_text)
     return output_rows
 
 
