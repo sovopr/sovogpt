@@ -4,6 +4,25 @@ SovoGPT is an experimental repository focused on training and fine-tuning Large 
 
 ## Architecture
 
+```mermaid
+graph TD
+    A[Raw Odia Text] --> B(prepare_odinglish_data.py)
+    B --> C[Sanitized Romanized Text]
+    C --> D(prepare_multi_turn.py)
+    D --> E[ChatML Formatted JSONL]
+    E --> F{train_agent.py}
+    
+    subgraph SovoGPT Core Architecture
+        F -->|AdamW + Gradient Checkpointing| G[LlamaForCausalLM]
+        H[JackFram/llama-160m Base] --> G
+        I[LlamaTokenizer] -->|Inject <|im_start|>, <|im_end|>| J[Extended Tokenizer]
+        J --> G
+    end
+
+    G --> K(run_system.py / KV Caching)
+    K --> L[Coherent Odinglish Generation]
+```
+
 The underlying system utilizes a LLaMA-based causal language modeling architecture. 
 
 - **Base Model:** JackFram/llama-160m (160 Million Parameters)
