@@ -15,7 +15,7 @@ graph TD
     subgraph SovoGPT Core Architecture
         F -->|AdamW + Gradient Checkpointing| G[LlamaForCausalLM]
         H[JackFram/llama-160m Base] --> G
-        I[LlamaTokenizer] -->|Inject <|im_start|>, <|im_end|>| J[Extended Tokenizer]
+        I[LlamaTokenizer] -->|"Inject <|im_start|>, <|im_end|>"| J[Extended Tokenizer]
         J --> G
     end
 
