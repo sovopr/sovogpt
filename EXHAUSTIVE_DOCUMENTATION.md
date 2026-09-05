@@ -377,13 +377,18 @@ flowchart TD
   - Tokenizes input English string: `inputs = trans_tokenizer(text, return_tensors="pt", max_length=128).to("mps")`.
   - Sets forced language token ID for Odia script: `force_lang_id = trans_tokenizer.convert_tokens_to_ids("ory_Orya")`.
   - Generates target sequence under `torch.no_grad()`:
-    $$\text{TargetTokens} = \text{generate}(\text{inputs}, \text{forced\_bos\_token\_id}=\text{ory\_Orya}, \text{max\_length}=128)$$
+    ```python
+    with torch.no_grad():
+        translated = trans_model.generate(**inputs, forced_bos_token_id=force_lang_id, max_length=128)
+    ```
 - **Outputs**: High-accuracy native Odia script string (`\u0B00-\u0B7F`).
 
 #### Node 7: Phonetic Script Transliteration Node
 - **Source Code**: [src/chat_agent.py:82-87](file:///Users/soveet/Desktop/sovogpt-main/src/chat_agent.py#L82-L87)
 - **Operation**: Converts NLLB's native Odia output back into standardized Romanized phonetic English letters:
-  $$\text{Odinglish} = \text{sanscript.transliterate}(\text{odia\_text}, \text{sanscript.ORIYA}, \text{sanscript.ITRANS})$$
+  ```python
+  odinglish = sanscript.transliterate(odia_text, sanscript.ORIYA, sanscript.ITRANS)
+  ```
 - **Outputs**: Clean Romanized Odia response ready for user presentation.
 
 #### Node 8: Local Sovereign LLM Brain Node
@@ -400,8 +405,12 @@ flowchart TD
   - `temperature = 0.4`: Low entropy prevents random token selection in small parameter spaces.
   - `top_k = 40`: Restricts sampling to the 40 most probable tokens.
   - `repetition_penalty = 1.5`: Heavily discounts logits of previously generated tokens:
-    $$z_i' = \begin{cases} z_i / 1.5 & \text{if } z_i > 0 \\ z_i \cdot 1.5 & \text{if } z_i \le 0 \end{cases}$$
-  - `no_repeat_ngram_size = 2`: Hard constraint forcing probability of any previously seen bigram to zero ($P(w_t | w_{t-1}) = 0$). This completely eliminates the classic small-model infinite loop: `",,,,,,"` or `"achhi achhi achhi"`.
+
+    $$
+    z_i' = \begin{cases} z_i / 1.5 & \text{if } z_i > 0 \\ z_i \cdot 1.5 & \text{if } z_i \le 0 \end{cases}
+    $$
+
+  - `no_repeat_ngram_size = 2`: Hard constraint forcing probability of any previously seen bigram to zero ($P(w_t \mid w_{t-1}) = 0$). This completely eliminates the classic small-model infinite loop: `",,,,,,"` or `"achhi achhi achhi"`.
 
 #### Node 10: Hallucination & Output Guardrail Node
 - **Source Code**: [src/chat_agent.py:113-117](file:///Users/soveet/Desktop/sovogpt-main/src/chat_agent.py#L113-L117)
@@ -457,62 +466,106 @@ flowchart LR
 - **Code**: [nanochat/gpt.py:172, 423](file:///Users/soveet/Desktop/sovogpt-main/nanochat_engine/nanochat/gpt.py#L172)
 - **Tensors**: Token Indices $X \in \mathbb{N}^{B \times T} \to E \in \mathbb{R}^{B \times T \times D}$.
 - **Vocab Padding**: The vocabulary size is padded to the nearest multiple of 64:
-  $$V_{\text{padded}} = \left\lceil \frac{V}{64} \right\rceil \times 64 = \left\lceil \frac{32768}{64} \right\rceil \times 64 = 32768$$
+
+  $$
+  V_{\text{padded}} = \left\lceil \frac{V}{64} \right\rceil \times 64 = \left\lceil \frac{32768}{64} \right\rceil \times 64 = 32768
+  $$
+
 - **Initialization**: Initialized with Normal distribution $\mathcal{N}(0, 0.8^2)$. Cast to `COMPUTE_DTYPE` (`float32` on MPS) to eliminate precision mismatch.
 
 #### Node 2: Non-Parametric RMSNorm
 - **Code**: [nanochat/gpt.py:42-43](file:///Users/soveet/Desktop/sovogpt-main/nanochat_engine/nanochat/gpt.py#L42-L43)
 - **Equation**:
-  $$\text{RMSNorm}(x) = \frac{x}{\sqrt{\frac{1}{D}\sum_{i=1}^D x_i^2 + \epsilon}}$$
+
+  $$
+  \text{RMSNorm}(x) = \frac{x}{\sqrt{\frac{1}{D}\sum_{i=1}^D x_i^2 + \epsilon}}
+  $$
+
 - **Interview Defense**: *"Why remove learnable scale ($\gamma$) and shift ($\beta$) parameters?"*  
   Standard LayerNorm and RMSNorm learn a scale vector $\gamma$. In distributed training and across modern deep networks, learned $\gamma$ introduces parameter synchronization overhead and often drifts, causing gradient instability. Eliminating $\gamma$ reduces memory, speeds up kernels, and maintains strict unit variance.
 
 #### Node 3: Bigram Embedding Smear Node
 - **Code**: [nanochat/gpt.py:183-184, 428-445](file:///Users/soveet/Desktop/sovogpt-main/nanochat_engine/nanochat/gpt.py#L183-L184)
 - **Concept**: Language modeling is heavily Markovian—the immediate predecessor token $x_{t-1}$ contains massive predictive information for $x_t$. The smear node blends $x_{t-1}$ directly into $x_t$:
-  $$\text{gate}_t = \lambda_{\text{smear}} \cdot \sigma\left(W_{\text{gate}} \cdot x_{t, :24}\right) \quad \in \mathbb{R}^{B \times 1}$$
-  $$x_t' = x_t + \text{gate}_t \cdot x_{t-1}$$
+
+  $$
+  \text{gate}_t = \lambda_{\text{smear}} \cdot \sigma\left(W_{\text{gate}} \cdot x_{t, :24}\right) \quad \in \mathbb{R}^{B \times 1}
+  $$
+
+  $$
+  x_t' = x_t + \text{gate}_t \cdot x_{t-1}
+  $$
+
 - **Interview Defense**: Gives the transformer an inductive bias for bigram statistics before the first attention layer even fires.
 
 #### Node 4: Initial State Skip Injection Node ($x_0$)
 - **Code**: [nanochat/gpt.py:181, 238, 452](file:///Users/soveet/Desktop/sovogpt-main/nanochat_engine/nanochat/gpt.py#L181)
 - **Operation**: Preserves initial token embeddings $x_0$ throughout all $L$ layers via learnable per-layer scalar parameters:
-  $$x_l = \lambda_{\text{resid}, l} \cdot x_l + \lambda_{x_0, l} \cdot x_0$$
+
+  $$
+  x_l = \lambda_{\text{resid}, l} \cdot x_l + \lambda_{x_0, l} \cdot x_0
+  $$
+
 - **Initialization Schedule**:
-  $$\lambda_{x_0, l} = 0.20 - 0.15 \cdot \left(\frac{l}{L - 1}\right)$$
+
+  $$
+  \lambda_{x_0, l} = 0.20 - 0.15 \cdot \left(\frac{l}{L - 1}\right)
+  $$
+
   Earlier layers receive more raw token input ($0.20$), decaying to $0.05$ at the final layer.
 
 #### Node 5: Residual Stream Scaling Node
 - **Code**: [nanochat/gpt.py:180, 235, 452](file:///Users/soveet/Desktop/sovogpt-main/nanochat_engine/nanochat/gpt.py#L180)
 - **Initialization Schedule**:
-  $$\lambda_{\text{resid}, l} = 1.15 - 0.10 \cdot \left(\frac{l}{L - 1}\right)$$
+
+  $$
+  \lambda_{\text{resid}, l} = 1.15 - 0.10 \cdot \left(\frac{l}{L - 1}\right)
+  $$
+
   Applies stronger residual expansion at shallow layers ($1.15$), tapering to neutral ($1.05$) at deep layers, dampening gradient explosion.
 
 #### Node 6: Bias-Free Q, K, V Linear Projections
 - **Code**: [nanochat/gpt.py:75-77](file:///Users/soveet/Desktop/sovogpt-main/nanochat_engine/nanochat/gpt.py#L75-L77)
 - **GQA Dimensions**:
   - $Q = W_Q x \in \mathbb{R}^{B \times T \times H_Q \times D_{\text{head}}}$ where $H_Q = 6$
-  - $K = W_K x \in \mathbb{R}^{B \times T \times H_{KV} \times D_{\text{head}}}$ where $H_{KV} = 6$
-  - $V = W_V x \in \mathbb{R}^{B \times T \times H_{KV} \times D_{\text{head}}}$
+  - $K = W_K x \in \mathbb{R}^{B \times T \times H_{\text{KV}} \times D_{\text{head}}}$ where $H_{\text{KV}} = 6$
+  - $V = W_V x \in \mathbb{R}^{B \times T \times H_{\text{KV}} \times D_{\text{head}}}$
 - **No Bias**: All linear layers set `bias=False`, eliminating dead neuron drift and saving parameter count.
 
 #### Node 7: Value Embedding (ResFormer) Gating Node
 - **Code**: [nanochat/gpt.py:79-80, 91-95, 190](file:///Users/soveet/Desktop/sovogpt-main/nanochat_engine/nanochat/gpt.py#L79-L80)
 - **Concept**: Shallow transformers suffer from attention rank collapse in the Value representation. ResFormer introduces a separate vocabulary embedding table for Values in alternating layers:
-  $$\text{ve} = \text{Embedding}_{\text{val}}(\text{token\_id}) \in \mathbb{R}^{B \times T \times H_{KV} \times D_{\text{head}}}$$
-  $$\text{gate} = 3.0 \cdot \sigma\left(W_{\text{ve}} \cdot x_{:, :12}\right) \in (0, 3.0)$$
-  $$V' = V + \text{gate} \odot \text{ve}$$
+
+  $$
+  \text{ve} = \text{Embedding}_{\text{val}}(x) \in \mathbb{R}^{B \times T \times H_{\text{KV}} \times D_{\text{head}}}
+  $$
+
+  $$
+  \text{gate} = 3.0 \cdot \sigma\left(W_{\text{ve}} \cdot x_{:, :12}\right) \in (0, 3.0)
+  $$
+
+  $$
+  V' = V + \text{gate} \odot \text{ve}
+  $$
 
 #### Node 8: Rotary Positional Embeddings (RoPE)
 - **Code**: [nanochat/gpt.py:57-63, 263-278](file:///Users/soveet/Desktop/sovogpt-main/nanochat_engine/nanochat/gpt.py#L57-L63)
 - **Mathematical Transformation**: For channel pair $(x_1, x_2)$ at position $m$:
-  $$\begin{pmatrix} y_1 \\ y_2 \end{pmatrix} = \begin{pmatrix} \cos(m\theta_i) & -\sin(m\theta_i) \\ \sin(m\theta_i) & \cos(m\theta_i) \end{pmatrix} \begin{pmatrix} x_1 \\ x_2 \end{pmatrix}$$
+
+  $$
+  \begin{pmatrix} y_1 \\ y_2 \end{pmatrix} = \begin{pmatrix} \cos(m\theta_i) & -\sin(m\theta_i) \\ \sin(m\theta_i) & \cos(m\theta_i) \end{pmatrix} \begin{pmatrix} x_1 \\ x_2 \end{pmatrix}
+  $$
+
   where $\theta_i = 100000^{-2(i-1)/D_{\text{head}}}$. Precomputed up to $10\times$ sequence length into non-persistent buffers `self.cos` and `self.sin`.
 
 #### Node 9: QK-Normalization Node
 - **Code**: [nanochat/gpt.py:100-102](file:///Users/soveet/Desktop/sovogpt-main/nanochat_engine/nanochat/gpt.py#L100-L102)
 - **Operation**:
-  $$Q' = 1.2 \cdot \text{RMSNorm}(Q), \quad K' = 1.2 \cdot \text{RMSNorm}(K)$$
+
+  $$
+  Q' = 1.2 \cdot \text{RMSNorm}(Q), \quad K' = 1.2 \cdot \text{RMSNorm}(K)
+  $$
+
 - **Interview Defense**: *"Why QK-Norm?"* In standard Transformers, $\frac{Q K^T}{\sqrt{d}}$ can grow unbounded when queries and keys align, pushing Softmax into saturation regions with zero gradients. QK-Norm bounds the magnitude of dot products, preventing training loss spikes and enabling stable training at aggressive learning rates.
 
 #### Node 10: Sliding Window Attention (SWA) Kernel
@@ -533,14 +586,22 @@ flowchart LR
 #### Node 14: $\text{ReLU}^2$ Feed-Forward Network (FFN)
 - **Code**: [nanochat/gpt.py:129-140](file:///Users/soveet/Desktop/sovogpt-main/nanochat_engine/nanochat/gpt.py#L129-L140)
 - **Equation**:
-  $$\text{FFN}(x) = W_2 \cdot \left(\max(0, W_1 x)\right)^2$$
+
+  $$
+  \text{FFN}(x) = W_2 \cdot \left(\max(0, W_1 x)\right)^2
+  $$
+
 - **Expansion Ratio**: $W_1 \in \mathbb{R}^{D \times 4D}$, $W_2 \in \mathbb{R}^{4D \times D}$.
 - **Interview Defense**: Eliminates the third linear gate matrix of SwiGLU ($\text{SiLU}(xW_1) \odot xW_3$) and avoids transcendental functions (`exp`, `tanh`). The squared ReLU introduces sharp, sparse activations with superior gradient flow.
 
 #### Node 16: Mid-Layer Backout Subtraction Node
 - **Code**: [nanochat/gpt.py:186, 449-459](file:///Users/soveet/Desktop/sovogpt-main/nanochat_engine/nanochat/gpt.py#L186)
 - **Concept**: Lower layers encode syntax, punctuation, and low-level character representations. Deep layers encode semantics. Before predicting the next token, SovoGPT subtracts the cached mid-layer representation:
-  $$x_{\text{final}} = x_L - \lambda_{\text{backout}} \cdot x_{\lfloor L/2 \rfloor}$$
+
+  $$
+  x_{\text{final}} = x_L - \lambda_{\text{backout}} \cdot x_{\lfloor L/2 \rfloor}
+  $$
+
   where $\lambda_{\text{backout}}$ is initialized to $0.20$. This strips out shallow syntactic artifacts before vocabulary projection.
 
 #### Node 18: Untied LM Head Linear Projection
@@ -551,13 +612,20 @@ flowchart LR
 #### Node 19: Logit Soft-Capping Node
 - **Code**: [nanochat/gpt.py:463-467](file:///Users/soveet/Desktop/sovogpt-main/nanochat_engine/nanochat/gpt.py#L463-L467)
 - **Equation**:
-  $$\text{Logits}_{\text{capped}} = \kappa \cdot \tanh\left(\frac{\text{Logits}}{\kappa}\right), \quad \text{where } \kappa = 15.0$$
+
+  $$
+  \text{Logits}_{\text{capped}} = \kappa \cdot \tanh\left(\frac{\text{Logits}}{\kappa}\right), \quad \text{where } \kappa = 15.0
+  $$
+
 - **Mathematical Property**: As $\text{Logits} \to \infty$, $\text{Logits}_{\text{capped}} \to 15.0$. Prevents logits from exploding, suppresses overconfidence, eliminates NaN gradients, and halts entropy collapse.
 
 #### Node 20: Cross-Entropy Loss with Assistant Masking
 - **Code**: [nanochat/gpt.py:472](file:///Users/soveet/Desktop/sovogpt-main/nanochat_engine/nanochat/gpt.py#L472) & [scripts/train_agent.py:42, 55](file:///Users/soveet/Desktop/sovogpt-main/scripts/train_agent.py#L42)
 - **Target Masking**: Prompts (system prompt, user question, tags) are assigned target label $-100$:
-  $$\mathcal{L} = -\frac{1}{\sum_{i} \mathbb{I}[y_i \ne -100]} \sum_{i: y_i \ne -100} \log P(y_i | x_{\le i})$$
+
+  $$
+  \mathcal{L} = -\frac{1}{\sum_{i} \mathbb{I}[y_i \ne -100]} \sum_{i: y_i \ne -100} \log P(y_i \mid x_{\le i})
+  $$
 
 ---
 
@@ -600,7 +668,11 @@ stateDiagram-v2
 #### Node 2: Cache Cloner & Allocation Node
 - **Source**: [nanochat/engine.py:82-138, 213-224](file:///Users/soveet/Desktop/sovogpt-main/nanochat_engine/nanochat/engine.py#L82-L138)
 - **Memory Layout**: Pre-allocates fixed memory tensors:
-  $$\text{Cache} \in \mathbb{R}^{L \times B \times T_{\text{max}} \times H_{KV} \times D_{\text{head}}}$$
+
+  $$
+  \text{Cache} \in \mathbb{R}^{L \times B \times T_{\text{max}} \times H_{\text{KV}} \times D_{\text{head}}}
+  $$
+
 - **Cloning**: When generating multiple samples in parallel (`num_samples > 1`), the batch=1 prefill KV tensor is cloned across all $B$ rows in memory via `kv_cache_decode.prefill(kv_cache_prefill)`. This prevents redundant prompt recalculation.
 
 #### Node 3: Single-Token Autoregressive Decode Node
@@ -708,25 +780,40 @@ Implemented in [nanochat_engine/nanochat/optim.py](file:///Users/soveet/Desktop/
   - **AdamW Group**: `lm_head`, `wte` embeddings, `value_embeds`, per-layer `resid_lambdas`, `x0_lambdas`, `smear_params`, and `backout_lambda`.
   - **Muon Group**: All internal 2D transformer weight matrices ($W_Q, W_K, W_V, W_O, W_{\text{fc}}, W_{\text{proj}}$).
 - **$D_{\text{model}}$ Scaling**: Dynamically scales AdamW learning rate by model width:
-  $$\text{lr\_scale} = \left(\frac{D_{\text{model}}}{768}\right)^{-0.5}$$
+
+  $$
+  \text{LR}_{\text{scale}} = \left(\frac{D_{\text{model}}}{768}\right)^{-0.5}
+  $$
 
 #### Node 2: Muon Matrix Orthogonalization via Polar Express
 - **Code**: [nanochat/optim.py:76-105](file:///Users/soveet/Desktop/sovogpt-main/nanochat_engine/nanochat/optim.py#L76-L105)
-- **Mathematical Background**:
-  Standard optimizers (AdamW, SGD) update matrices element-wise. Muon treats 2D weights as geometric operators. It computes the **Polar Decomposition / Orthogonalization** of the momentum gradient matrix $G \approx U V^T$ via the **Polar Express / Newton-Schulz Iteration**:
-  $$X_0 = \frac{G}{\|G\|_F}$$
-  $$X_{k+1} = X_k \left(a I + b X_k^T X_k + c (X_k^T X_k)^2\right)$$
+- **Mathematical Background**: Standard optimizers (AdamW, SGD) update matrices element-wise. Muon treats 2D weights as geometric operators. It computes the **Polar Decomposition / Orthogonalization** of the momentum gradient matrix $G \approx U V^T$ via the **Polar Express / Newton-Schulz Iteration**:
+
+  $$
+  X_0 = \frac{G}{\|G\|_F}
+  $$
+
+  $$
+  X_{k+1} = X_k \left(a I + b X_k^T X_k + c (X_k^T X_k)^2\right)
+  $$
+
   This orthogonalizes the update matrix so that all singular values are approximately 1.
 - **NorMuon Variance Reduction**: Applies column-wise variance normalization to ensure uniform learning across every neuron in the matrix.
 
 #### Node 3: Fused AdamW Kernel
 - **Code**: [nanochat/optim.py:21-52](file:///Users/soveet/Desktop/sovogpt-main/nanochat_engine/nanochat/optim.py#L21-L52)
 - **Operations**:
-  $$p \leftarrow p \cdot (1 - \text{lr} \cdot \text{wd})$$
-  $$m_t \leftarrow \beta_1 m_{t-1} + (1 - \beta_1) g_t$$
-  $$v_t \leftarrow \beta_2 v_{t-1} + (1 - \beta_2) g_t^2$$
-  $$\hat{m}_t = \frac{m_t}{1 - \beta_1^t}, \quad \hat{v}_t = \frac{v_t}{1 - \beta_2^t}$$
-  $$p \leftarrow p - \text{lr} \cdot \frac{\hat{m}_t}{\sqrt{\hat{v}_t} + \epsilon}$$
+
+  $$
+  \begin{aligned}
+  p &\leftarrow p \cdot (1 - \text{lr} \cdot \text{wd}) \\
+  m_t &\leftarrow \beta_1 m_{t-1} + (1 - \beta_1) g_t \\
+  v_t &\leftarrow \beta_2 v_{t-1} + (1 - \beta_2) g_t^2 \\
+  \hat{m}_t &= \frac{m_t}{1 - \beta_1^t}, \quad \hat{v}_t = \frac{v_t}{1 - \beta_2^t} \\
+  p &\leftarrow p - \text{lr} \cdot \frac{\hat{m}_t}{\sqrt{\hat{v}_t} + \epsilon}
+  \end{aligned}
+  $$
+
   Compiled into a single fullgraph GPU kernel via `@torch.compile(dynamic=False, fullgraph=True)`.
 
 #### Node 4: Gradient Checkpointing & MPS Unified Memory
@@ -747,12 +834,24 @@ A crucial architectural decision in SovoGPT is handling Apple Silicon unified me
    On Apple Silicon (M1/M2/M3/M4 Pro/Max), GPU memory and CPU memory share the same physical LPDDR5 bus. Avoiding unnecessary device copies (`.to("cpu")` $\leftrightarrow$ `.to("mps")`) preserves 150–400 GB/s bus bandwidth.
 
 ### Exact KV-Cache Memory Calculation
+
 In an interview, calculate the KV-cache footprint on the whiteboard:
-$$\text{Memory}_{\text{KV}} = 2 \times B \times L \times T \times H_{KV} \times D_{\text{head}} \times \text{BytesPerElement}$$
-For SovoGPT with Batch $B=1$, Sequence Length $T=512$, Layers $L=12$, Heads $H_{KV}=6$, Head Dimension $D_{\text{head}}=64$ ($768/12$ or $n\_embd/n\_head$), in FP32 (4 bytes):
-$$\text{Memory}_{\text{KV}} = 2 \times 1 \times 12 \times 512 \times 6 \times 64 \times 4 \text{ bytes}$$
-$$\text{Memory}_{\text{KV}} = 24 \times 512 \times 384 \times 4 = 18,874,368 \text{ bytes} \approx \mathbf{18.0 \text{ MB}}$$
-Because GQA uses $H_{KV}=6$ instead of $H_Q=12$, the KV cache memory footprint and memory bandwidth during decoding are cut in **half**!
+
+$$
+\text{Memory}_{\text{KV}} = 2 \times B \times L \times T \times H_{\text{KV}} \times D_{\text{head}} \times \text{BytesPerElement}
+$$
+
+For SovoGPT with Batch $B=1$, Sequence Length $T=512$, Layers $L=12$, Heads $H_{\text{KV}}=6$, Head Dimension $D_{\text{head}}=64$ ($768/12$, or `n_embd / n_head`), in FP32 (4 bytes):
+
+$$
+\text{Memory}_{\text{KV}} = 2 \times 1 \times 12 \times 512 \times 6 \times 64 \times 4 \text{ bytes}
+$$
+
+$$
+\text{Memory}_{\text{KV}} = 24 \times 512 \times 384 \times 4 = 18{,}874{,}368 \text{ bytes} \approx \mathbf{18.0\text{ MB}}
+$$
+
+Because GQA uses $H_{\text{KV}}=6$ instead of $H_Q=12$, the KV cache memory footprint and memory bandwidth during decoding are cut in **half**!
 
 ---
 
@@ -812,43 +911,63 @@ Because GQA uses $H_{KV}=6$ instead of $H_Q=12$, the KV cache memory footprint a
 
 ### Transformer Mechanics & Deep Learning
 #### Q4: "What is the mathematical justification for QK-Norm?"
-> **Defense:**
+> **Defense:**  
 > In standard Dot-Product Attention:
-> $$\text{Attn}(Q, K, V) = \text{softmax}\left(\frac{Q K^T}{\sqrt{d_k}}\right) V$$
+>
+> $$
+> \text{Attn}(Q, K, V) = \text{softmax}\left(\frac{Q K^T}{\sqrt{d_k}}\right) V
+> $$
+>
 > As models train or when sequence lengths grow, the magnitude of individual query and key vectors $\|q\|_2, \|k\|_2$ can grow unbounded. This pushes the inputs to the Softmax function to extreme values, causing the Softmax gradient $\frac{\partial \text{softmax}(z)_i}{\partial z_j} = s_i (\delta_{ij} - s_j)$ to saturate to zero (vanishing gradients) or causing sudden catastrophic loss spikes.  
 > By applying **QK-Norm**:
-> $$q' = 1.2 \times \frac{q}{\|q\|_2}, \quad k' = 1.2 \times \frac{k}{\|k\|_2}$$
+>
+> $$
+> q' = 1.2 \times \frac{q}{\|q\|_2}, \quad k' = 1.2 \times \frac{k}{\|k\|_2}
+> $$
+>
 > the maximum possible dot product is mathematically bounded by $1.44 \times d_k$. This guarantees Softmax never enters the saturated flat region, eliminating loss spikes and enabling stable training at 2x–5x higher learning rates.
 
 #### Q5: "Why Grouped-Query Attention (GQA) instead of standard Multi-Head Attention (MHA)?"
-> **Defense:**
+> **Defense:**  
 > In Multi-Head Attention, the number of Query, Key, and Value heads is identical ($H_Q = H_K = H_V = 12$). At inference time, decoding is entirely **memory-bandwidth bound**, not compute-bound: the GPU spends most of its time fetching old KV tensors from VRAM for each single new token.  
-> In GQA, multiple Query heads share a single Key/Value head. SovoGPT configures $H_Q = 6, H_{KV} = 6$ (or $H_Q=12, H_{KV}=2$ in larger variants). This cuts the KV-cache memory traffic by up to $6\times$, drastically increasing tokens-per-second throughput on memory-constrained devices like Apple Silicon.
+> In GQA, multiple Query heads share a single Key/Value head. SovoGPT configures $H_Q = 6, H_{\text{KV}} = 6$ (or $H_Q=12, H_{\text{KV}}=2$ in larger variants). This cuts the KV-cache memory traffic by up to $6\times$, drastically increasing tokens-per-second throughput on memory-constrained devices like Apple Silicon.
 
 #### Q6: "Why is $\text{ReLU}^2$ used in nanochat instead of SwiGLU or GELU?"
-> **Defense:**
+> **Defense:**  
 > 1. **Compute Efficiency**: GELU and SwiGLU require transcendental operations ($\tanh$, $\text{erf}$, or $\text{sigmoid}$), which require multi-cycle approximations on ALU/SIMD hardware. $\text{ReLU}^2$ is simply $\max(0, x)$ followed by a single floating-point multiplication.
 > 2. **Parameter Savings**: SwiGLU requires 3 linear projection matrices ($W_1, W_2, W_3$). $\text{ReLU}^2$ requires only 2 ($W_{\text{fc}}, W_{\text{proj}}$), saving 33% of the MLP parameter budget.
 > 3. **Activation Sparsity**: $\text{ReLU}^2$ produces true zero activations for all negative inputs (unlike GELU or SiLU), inducing healthy representational sparsity.
 
 #### Q7: "What is Embedding Smear and what inductive bias does it introduce?"
-> **Defense:**
+> **Defense:**  
 > Transformers are fundamentally permutation-equivariant without positional encodings; even with RoPE, token representations interact only through attention weights. Embedding Smearing mixes the previous token's normalized embedding directly into the current position:
-> $$x_t \leftarrow x_t + \lambda_{\text{smear}} \cdot \sigma(W x_{t, :24}) \cdot x_{t-1}$$
+>
+> $$
+> x_t \leftarrow x_t + \lambda_{\text{smear}} \cdot \sigma(W x_{t, :24}) \cdot x_{t-1}
+> $$
+>
 > This injects an explicit **bigram inductive bias** before Layer 0. For natural language—and especially phonetically Romanized languages where bigrams dictate syllable structure—this allows shallow layers to focus immediately on higher-level syntax rather than learning basic adjacent token associations.
 
 #### Q8: "What is Mid-Layer Backout and why subtract activations?"
-> **Defense:**
+> **Defense:**  
 > In a 12-layer transformer, layers 1–6 primarily encode shallow orthographic, morphological, and local syntactic features, while layers 7–12 encode high-level abstract semantics. When predicting the next token, the final representation can be contaminated by residual low-level noise.  
 > Mid-Layer Backout subtracts a fraction ($\lambda_{\text{backout}} = 0.2$) of Layer 6 activations before the final LM head:
-> $$x \leftarrow x - \lambda_{\text{backout}} \cdot x_{\lfloor L/2 \rfloor}$$
+>
+> $$
+> x \leftarrow x - \lambda_{\text{backout}} \cdot x_{\lfloor L/2 \rfloor}
+> $$
+>
 > This acts as an architectural high-pass filter, forcing the LM head to attend strictly to deep semantic representations rather than shallow token echoes.
 
 #### Q9: "Explain Logit Soft-Capping and why it stops entropy collapse."
-> **Defense:**
+> **Defense:**  
 > In small models trained over multiple epochs, the model often becomes overconfident on frequent training n-grams, driving logit values to extreme magnitudes ($\pm 50$ to $\pm 100$). This drives the categorical entropy of the output distribution to zero (entropy collapse), resulting in catastrophic repetition loops during inference.  
 > Logit soft-capping passes logits through a scaled hyperbolic tangent:
-> $$\text{logits}' = 15.0 \times \tanh\left(\frac{\text{logits}}{15.0}\right)$$
+>
+> $$
+> \text{logits}' = 15.0 \times \tanh\left(\frac{\text{logits}}{15.0}\right)
+> $$
+>
 > Regardless of matrix multiplication values, logits can never exceed $(-15.0, +15.0)$. The probability of any single token is strictly bounded below 1.0, preserving healthy sampling diversity and preventing runaway gradient explosions during backprop.
 
 ---
