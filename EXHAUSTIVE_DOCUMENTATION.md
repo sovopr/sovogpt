@@ -21,7 +21,7 @@
 10. [Graph 5: Optimization & Distributed Training Graph (Muon + AdamW)](#10-graph-5-optimization--distributed-training-graph-muon--adamw)
 11. [Hardware Profiling & Memory Footprint (Apple Silicon MPS vs. CUDA)](#11-hardware-profiling--memory-footprint-apple-silicon-mps-vs-cuda)
 12. [Repository File-by-File Technical Directory](#12-repository-file-by-file-technical-directory)
-13. [FAANG / Amazon Technical Interview Defense (25+ In-Depth Q&As)](#13-faang--amazon-technical-interview-defense-25-in-depth-qas)
+13. [Defense](#13-defense)
 14. [Execution, Training, and Evaluation Playbook](#14-execution-training-and-evaluation-playbook)
 
 ---
@@ -406,9 +406,9 @@ flowchart TD
   - `top_k = 40`: Restricts sampling to the 40 most probable tokens.
   - `repetition_penalty = 1.5`: Heavily discounts logits of previously generated tokens:
 
-    $$
-    z_i' = \begin{cases} z_i / 1.5 & \text{if } z_i > 0 \\ z_i \cdot 1.5 & \text{if } z_i \le 0 \end{cases}
-    $$
+  $$
+  z_i' = \begin{cases} z_i / 1.5 & \text{if } z_i > 0 \\ z_i \cdot 1.5 & \text{if } z_i \le 0 \end{cases}
+  $$
 
   - `no_repeat_ngram_size = 2`: Hard constraint forcing probability of any previously seen bigram to zero ($P(w_t \mid w_{t-1}) = 0$). This completely eliminates the classic small-model infinite loop: `",,,,,,"` or `"achhi achhi achhi"`.
 
@@ -880,7 +880,7 @@ Because GQA uses $H_{\text{KV}}=6$ instead of $H_Q=12$, the KV cache memory foot
 
 ---
 
-## 13. FAANG / Amazon Technical Interview Defense (25+ In-Depth Q&As)
+## 13. Defense
 
 ### System Design & Agent Architecture
 #### Q1: "Why build a dedicated small LLM and agent instead of prompting Claude 3.5 Sonnet or GPT-4o?"
