@@ -28,17 +28,6 @@ SYSTEM_RULES = (
     "using English letters only (Roman script). Keep replies conversational."
 )
 
-IDENTITY_MAP = {
-    "tume kie": "mu sovogpt, apananka odia ai sahayaka.",
-    "tumara nama kana": "mora nama sovogpt.",
-    "what is your name": "mora nama sovogpt.",
-    "namaskar": "namaskar! apana kemiti achanti?",
-    "kemiti achha": "mu bhala achi, tume kemiti achha?",
-    "kemiti acha": "mu bhala achi, tume kemiti achha?",
-    "hi": "hallo! mu sovogpt.",
-    "hello": "namaskar! mu sovogpt.",
-}
-
 print("\n--- Sovogpt is ready! ---")
 print("(Type 'quit' to exit)\n")
 
@@ -55,20 +44,6 @@ while True:
         continue
     if user_input.lower() == "quit":
         break
-    
-    u_lower = user_input.lower()
-    
-    # Fast greeting / identity anchor
-    quick_reply = None
-    for k, v in IDENTITY_MAP.items():
-        if k in u_lower and len(u_lower.split()) <= 4:
-            quick_reply = v
-            break
-            
-    if quick_reply:
-        print(f"Sovogpt: {quick_reply}\n")
-        history.append((user_input, quick_reply))
-        continue
         
     # ChatML formatted prompt
     prompt = f"<|im_start|>system\n{SYSTEM_RULES}<|im_end|>\n"

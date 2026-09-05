@@ -116,56 +116,12 @@ def english_to_odinglish(text: str) -> str:
     except Exception:
         return odia_text
 
-# --- COMPONENT 4: CONVERSATIONAL MEMORY & GENERATION ---
-
-IDENTITY_MAP = {
-    "tume kie": "mu sovogpt, apananka odia ai sahayaka.",
-    "tumara nama kana": "mora nama sovogpt.",
-    "what is your name": "mora nama sovogpt.",
-    "who are you": "mu sovogpt, tumara odia ai friend.",
-    "namaskar": "namaskar! apana kemiti achanti?",
-    "kemiti achha": "mu bhala achi, tume kemiti achha?",
-    "kemiti acha": "mu bhala achi, tume kemiti achha?",
-    "hi": "hallo! mu sovogpt.",
-    "hello": "namaskar! mu sovogpt.",
-    "subha sakala": "subha sakala! apananka dina mangalamaya heu.",
-    "subha ratri": "subha ratri! shantire souantu.",
-    "dhanyabad": "apananku swagata! jebe darkar pacha.",
-    "bye": "bidaya! puni dekha haba.",
-}
-
-CONVERSATIONAL_SEEDS = {
-    "khaiba": "aaji rati re dalma, bhata kimba roti-tarkari khaiparanti. simple au healthy!",
-    "gapa": "dharani re gote gaon thila, sethi eka chota pila thila ye ki sabubele gacha lagauthila. dina se gacha falabanta hela o samastanku sahajya kala.",
-    "missi": "han nischaya! ame odia o english mix kari katha heipariba (Odinglish).",
-    "movie": "tume 'Daman', 'Babushan nka film', kimba kichi bhala Odia classic cinema dekhipariba.",
-    "kounthi": "mu cloud re thiba eka odia ai assistant, mora ghara odisha re boli bhabiparanti!",
-    "ai": "artificial intelligence mane krutrima budhimatta, yaha computer ku manisha pari bhabi katha heba sikhaye.",
-    "sahitya": "odia sahitya bahut prachina o samrudha. sarala das, fakir mohan senapati, o radhanath ray nkara lekha atyanta lokapriya.",
-    "khadya": "mu robot, kintu odisha ra pakhala, dalma, o chhena poda mora favourite boli sunichi!",
-    "advice": "sabubele positive bhabantu, samayare kama karantu, o aaji tike bishrama niantu.",
-    "udas": "udas huantu nahin! tike bhal music sunantu, sanga nka saha katha huantu, sabu thik heijiba.",
-}
-
-DRIFT_PATTERNS = ["1980", "1968", "1987", "1960", "phutabal", "aphrika", "indonesia", "mandirara labha", "satriya", "prrithibira"]
+# --- COMPONENT 4: NEURAL CHATML GENERATION ---
 
 def get_local_reply(user_input: str, history: list = None) -> str:
-    u = user_input.lower().strip()
-    
-    # 1. Exact / Partial Identity Match
-    for k, v in IDENTITY_MAP.items():
-        if k in u and len(u.split()) <= 4:
-            return v
-            
-    # 2. Conversational Intent Grounding
-    for k, v in CONVERSATIONAL_SEEDS.items():
-        if k in u:
-            return v
-            
     if not model or not tokenizer:
         return "mu sovogpt, apananka odia ai sahayaka."
         
-    # 3. Neural ChatML Generation
     prompt = f"<|im_start|>system\n{SYSTEM_RULES}<|im_end|>\n"
     if history:
         for u_old, a_old in history[-2:]:
@@ -194,12 +150,7 @@ def get_local_reply(user_input: str, history: list = None) -> str:
     cleaned = raw.split("<|im_end|>")[0].split("<|im_start|>")[0].replace("<|endoftext|>", " ").strip()
     cleaned = re.sub(r"[^a-z0-9 .,?!'/-]+", " ", cleaned.lower())
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    
-    # Guardrail against pretraining drift or repetitive collapse
-    if len(cleaned) < 3 or any(p in cleaned for p in DRIFT_PATTERNS):
-        return "mu apananka prashna bujhiparuchi. kichi bhal bhabare pacharantu, mu sahajya karibi."
-        
-    return cleaned
+    return cleaned if len(cleaned) >= 2 else "..."
 
 # --- MAIN AGENT LOOP ---
 def main():
