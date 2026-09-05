@@ -1,4 +1,3 @@
-import os
 import re
 import warnings
 import logging
@@ -160,7 +159,10 @@ def main():
     print("  Type 'quit' to exit")
     print("="*50 + "\n")
     
-    search_keywords = ['weather', 'tapamatra', 'barsha', 'news', 'capital', 'price', 'population', 'who is prime minister']
+    search_keywords = [
+        'weather', 'tapamatra', 'temperature', 'barsha', 'news',
+        'capital', 'price', 'population', 'who is prime minister'
+    ]
     history = []
     
     while True:
@@ -179,10 +181,6 @@ def main():
         
         # Router: Explicit real-time factual triggers
         is_factual_query = any(k in u_lower for k in search_keywords)
-        # Weather / temperature queries always route to live search
-        if ('weather' in u_lower or 'tapamatra' in u_lower or 'temperature' in u_lower):
-            is_factual_query = True
-            
         if is_factual_query:
             fact = search_web(user_input)
             if fact:

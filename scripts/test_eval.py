@@ -1,4 +1,10 @@
+import os
 import sys
+import torch
+
+sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 from run_system import load_model, generate_reply, to_roman_odia
 
 inputs = [
@@ -22,10 +28,10 @@ inputs = [
 def main():
     print("Loading model for evaluation...")
     model, tokenizer, path = load_model()
-    device = "mps"
+    device = "mps" if torch.backends.mps.is_available() else "cpu"
     model.to(device)
     model.eval()
-    print("Model loaded. Starting 15-turn conversation...")
+    print(f"Model loaded from {path} on {device.upper()}. Starting 15-turn conversation...")
     
     history = []
     

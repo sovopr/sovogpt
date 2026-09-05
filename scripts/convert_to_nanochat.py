@@ -96,9 +96,23 @@ def main():
     pretrain_path = os.path.join(args.output_dir, "odinglish_pretrain.txt")
 
     if not os.path.exists(args.input):
-        print(f"ERROR: Input file not found: {args.input}")
-        sys.exit(1)
+        candidates = [
+            os.path.join(os.path.dirname(__file__), "..", "data", "conversational_odinglish.txt"),
+            os.path.join(os.path.dirname(__file__), "..", "data", "legacy", "agent_training_data.txt"),
+            "data/conversational_odinglish.txt",
+            "data/legacy/agent_training_data.txt",
+        ]
+        found = False
+        for cand in candidates:
+            if os.path.exists(cand):
+                args.input = cand
+                found = True
+                break
+        if not found:
+            print(f"ERROR: Input file not found: {args.input}")
+            sys.exit(1)
 
+    print(f"Reading ChatML data from: {args.input}")
     with open(args.input, "r", encoding="utf-8") as f:
         data = f.read()
 

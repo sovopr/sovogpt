@@ -1,10 +1,15 @@
 # config.py
+import os
 from transformers import LlamaConfig, LlamaForCausalLM, PreTrainedTokenizerFast
 
 def get_model_and_tokenizer():
-    # Load our custom tokenizer (Points to the new single file)
+    # Resolve tokenizer file relative to project root
+    tok_path = os.path.join(os.path.dirname(__file__), "..", "sovogpt_tokenizer.json")
+    if not os.path.exists(tok_path):
+        tok_path = "sovogpt_tokenizer.json"
+
     tokenizer = PreTrainedTokenizerFast(
-        tokenizer_file="sovogpt_tokenizer.json", # <--- UPDATED THIS LINE
+        tokenizer_file=tok_path,
         bos_token="<s>",
         eos_token="</s>",
         unk_token="<unk>",

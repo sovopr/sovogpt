@@ -9,8 +9,8 @@ import torch
 from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence
 from transformers import (
+    AutoTokenizer,
     LlamaForCausalLM,
-    PreTrainedTokenizerFast,
     Trainer,
     TrainingArguments,
 )
@@ -113,17 +113,12 @@ def main() -> None:
         raise FileNotFoundError(f"Training file not found: {args.data}")
 
     device_name = "mps" if torch.backends.mps.is_available() else "cpu"
-    use_mps = device_name == "mps"
     print(f"Using device: {device_name}")
 
     if args.base_model and (os.path.exists(args.base_model) or "/" in args.base_model):
         print(f"Loading base model from {args.base_model}")
         model = LlamaForCausalLM.from_pretrained(args.base_model)
-        try:
-            tokenizer = PreTrainedTokenizerFast.from_pretrained(args.base_model)
-        except Exception:
-            from transformers import AutoTokenizer
-            tokenizer = AutoTokenizer.from_pretrained(args.base_model)
+        tokenizer = AutoTokenizer.from_pretrained(args.base_model)
             
         special_tokens = {'additional_special_tokens': ['<|im_start|>', '<|im_end|>']}
         if tokenizer.pad_token is None:

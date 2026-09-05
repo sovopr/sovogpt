@@ -1,11 +1,21 @@
 import json
+import os
 import random
+import sys
+
+sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 from prepare_odinglish_data import to_roman_odia, SYSTEM_INSTRUCTION
 
 def main():
     print("Loading jsonl...")
+    data_path = os.path.join(os.path.dirname(__file__), "..", "data", "odinglish_conversations.jsonl")
+    if not os.path.exists(data_path):
+        data_path = "data/odinglish_conversations.jsonl"
+
     pairs = []
-    with open("data/odinglish_conversations.jsonl", "r", encoding="utf-8") as f:
+    with open(data_path, "r", encoding="utf-8") as f:
         for line in f:
             if not line.strip(): continue
             conv = json.loads(line)

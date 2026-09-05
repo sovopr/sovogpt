@@ -293,7 +293,7 @@ When asked to whiteboard the architecture, sketch these two diagrams immediately
 
 ## 6. Graph 1: Multi-Agent & Hybrid RAG System Graph (10 Discrete Nodes)
 
-Implemented in [src/chat_agent.py](file:///Users/soveet/Desktop/sovogpt-main/src/chat_agent.py) and [src/chat_internet.py](file:///Users/soveet/Desktop/sovogpt-main/src/chat_internet.py), this multi-model agent coordinates specialized neural models and external tools.
+Implemented in [src/chat_agent.py](file:///Users/soveet/Desktop/sovogpt-main/src/chat_agent.py), this multi-model agent coordinates specialized neural models and external tools.
 
 ```mermaid
 flowchart TD
@@ -362,7 +362,7 @@ flowchart TD
 - **Outputs**: Top document text snippet or `None` on failure.
 
 #### Node 5: Content Verification & Fact Extraction Node
-- **Source Code**: [src/chat_internet.py:68-86](file:///Users/soveet/Desktop/sovogpt-main/src/chat_internet.py#L68-L86)
+- **Source Code**: [src/chat_agent.py:81-98](file:///Users/soveet/Desktop/sovogpt-main/src/chat_agent.py#L81-L98)
 - **Inputs**: Raw search snippet array.
 - **Operation**:
   1. **Quiz/Trivia Filter**: Drops snippets containing `"(a)"`, `"Question"`, or leading ellipsis `"..."` (common search junk from online quiz scrapers).
@@ -862,7 +862,6 @@ Because GQA uses $H_{\text{KV}}=6$ instead of $H_Q=12$, the KV cache memory foot
 | [src/config.py](file:///Users/soveet/Desktop/sovogpt-main/src/config.py) | LLaMA model configuration & tokenizer binding | `get_model_and_tokenizer()`, `LlamaConfig` |
 | [src/chat.py](file:///Users/soveet/Desktop/sovogpt-main/src/chat.py) | Standalone LLaMA inference CLI | Sampling loop, repetition penalty, MPS device init |
 | [src/chat_agent.py](file:///Users/soveet/Desktop/sovogpt-main/src/chat_agent.py) | Full Multi-Agent System (Router, Search, NLLB, Translit) | `search_web()`, `english_to_odinglish()`, `get_local_reply()` |
-| [src/chat_internet.py](file:///Users/soveet/Desktop/sovogpt-main/src/chat_internet.py) | Smart Search hybrid agent with quiz filtering | `clean_query_for_search()`, `get_internet_answer()` |
 | [scripts/train_tokenizer.py](file:///Users/soveet/Desktop/sovogpt-main/scripts/train_tokenizer.py) | Byte-Level BPE tokenizer training script | `ByteLevelBPETokenizer`, 16K vocab, ChatML special tokens |
 | [scripts/prepare_odinglish_data.py](file:///Users/soveet/Desktop/sovogpt-main/scripts/prepare_odinglish_data.py) | Corpus cleaning, Sanscript transliteration, ChatML | `to_roman_odia()`, `build_dataset()`, `SEED_PAIRS` |
 | [scripts/prepare_multi_turn.py](file:///Users/soveet/Desktop/sovogpt-main/scripts/prepare_multi_turn.py) | Multi-turn chunking generator | Conversational chunking (5 turns/block), random shuffling |

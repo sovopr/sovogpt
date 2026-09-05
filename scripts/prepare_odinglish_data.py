@@ -12,6 +12,8 @@ except Exception:
 
 
 DEFAULT_INPUT_FILES = [
+    "data/conversational_odinglish.txt",
+    "data/legacy/agent_training_data.txt",
     "agent_training_data.txt",
     "real_chat_dataset.txt",
     "clean_chat_data.txt",

@@ -39,7 +39,7 @@ echo "============================================"
 echo ""
 echo ">>> Step 0: Converting ChatML → nanochat JSONL..."
 cd "$PROJECT_ROOT"
-python scripts/convert_to_nanochat.py --input agent_training_data.txt --output-dir data
+python scripts/convert_to_nanochat.py --input data/conversational_odinglish.txt --output-dir data
 
 # Copy the conversations file where nanochat expects it
 cp data/odinglish_conversations.jsonl "$NANOCHAT_BASE_DIR/odinglish_conversations.jsonl"

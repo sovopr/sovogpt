@@ -2,7 +2,7 @@ import logging
 import os
 import re
 import warnings
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
 os.environ.setdefault("XDG_CACHE_HOME", "/tmp")
@@ -26,48 +26,13 @@ WS_RE = re.compile(r"\s+")
 
 MODEL_CANDIDATES = [
     "./sovogpt_agent_model",
+    os.path.join(os.path.dirname(__file__), "..", "sovogpt_agent_model"),
 ]
 
 SYSTEM_RULES = (
     "Instruction: You are an Odia AI assistant. Reply in natural Odia+English "
     "using English letters only (Roman script). Keep replies conversational."
 )
-
-BAD_MARKERS = ["<<", "instruction:", "user:", "sovogpt:", "endoftext", "<|", "|>"]
-STOPWORDS = {
-    "mu",
-    "tu",
-    "tume",
-    "tame",
-    "apana",
-    "apanaka",
-    "apananka",
-    "tamara",
-    "toro",
-    "tumara",
-    "mora",
-    "your",
-    "naa",
-    "nama",
-    "name",
-    "kana",
-    "ki",
-    "re",
-    "ta",
-    "na",
-    "naa",
-    "what",
-    "is",
-    "are",
-    "the",
-}
-
-DECODE_CONFIGS: List[Dict[str, float]] = [
-    {"temperature": 0.75, "top_p": 0.9},
-    {"temperature": 0.9, "top_p": 0.95},
-    {"temperature": 0.65, "top_p": 0.85},
-    {"temperature": 0.8, "top_p": 0.92},
-]
 
 
 def to_roman_odia(text: str) -> str:
@@ -119,9 +84,15 @@ def generate_reply(
     history: List[Tuple[str, str]],
     user_text: str,
 ) -> str:
+    # Ensure model is on the target device
+    target_device = torch.device(device)
+    if next(model.parameters()).device != target_device:
+        model.to(target_device)
+        model.eval()
+
     # Cap history to last 2 turns to prevent compounding error noise
     prompt = build_prompt(history[-2:], user_text)
-    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(device)
+    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(target_device)
     inputs.pop("token_type_ids", None)
 
     im_end_id = tokenizer.convert_tokens_to_ids("<|im_end|>")
@@ -155,7 +126,7 @@ def main() -> None:
     model.eval()
 
     print(f"Loaded model: {model_path}")
-    print("Generation mode: reward-scored multi-sampling (no template hardcoding)")
+    print("Generation mode: neural ChatML generation with nucleus sampling")
     print("Type 'quit' to exit.")
 
     history: List[Tuple[str, str]] = []
