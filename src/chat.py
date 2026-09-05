@@ -47,8 +47,10 @@ while True:
         
     # ChatML formatted prompt
     prompt = f"<|im_start|>system\n{SYSTEM_RULES}<|im_end|>\n"
-    for u_old, a_old in history[-2:]:
-        prompt += f"<|im_start|>user\n{u_old}<|im_end|>\n<|im_start|>assistant\n{a_old}<|im_end|>\n"
+    if history:
+        u_old, a_old = history[-1]
+        a_first = a_old.split(".")[0] + "." if "." in a_old else a_old
+        prompt += f"<|im_start|>user\n{u_old}<|im_end|>\n<|im_start|>assistant\n{a_first}<|im_end|>\n"
     prompt += f"<|im_start|>user\n{user_input}<|im_end|>\n<|im_start|>assistant\n"
     
     inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(device)

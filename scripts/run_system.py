@@ -96,9 +96,11 @@ def load_model() -> Tuple[LlamaForCausalLM, any, str]:
 
 def build_prompt(history: List[Tuple[str, str]], user_text: str) -> str:
     prompt = f"<|im_start|>system\n{SYSTEM_RULES}<|im_end|>\n"
-    for old_user, old_reply in history[-4:]:
+    if history:
+        old_user, old_reply = history[-1]
+        clean_reply = old_reply.split(".")[0] + "." if "." in old_reply else old_reply
         prompt += f"<|im_start|>user\n{old_user}<|im_end|>\n"
-        prompt += f"<|im_start|>assistant\n{old_reply}<|im_end|>\n"
+        prompt += f"<|im_start|>assistant\n{clean_reply}<|im_end|>\n"
     prompt += f"<|im_start|>user\n{user_text}<|im_end|>\n<|im_start|>assistant\n"
     return prompt
 

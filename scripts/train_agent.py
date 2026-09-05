@@ -43,13 +43,14 @@ class ChatMLDataset(Dataset):
             for i in range(1, len(parts)):
                 sub_parts = parts[i].split("<|im_end|>\n<|im_start|>user\n")
                 
-                resp = sub_parts[0] + "<|im_end|>\n"
+                resp_clean = sub_parts[0].replace("<|im_end|>", "").strip()
+                resp = resp_clean + "<|im_end|>\n"
                 resp_ids = tokenizer(resp, add_special_tokens=False)["input_ids"]
                 input_ids.extend(resp_ids)
                 labels.extend(resp_ids)
                 
                 if len(sub_parts) > 1:
-                    next_prompt = "<|im_start|>user\n" + sub_parts[1] + "<|im_start|>assistant\n"
+                    next_prompt = "<|im_start|>user\n" + sub_parts[1].replace("<|im_start|>user\n", "").strip() + "<|im_start|>assistant\n"
                     next_prompt_ids = tokenizer(next_prompt, add_special_tokens=False)["input_ids"]
                     input_ids.extend(next_prompt_ids)
                     labels.extend([-100] * len(next_prompt_ids))
@@ -91,10 +92,11 @@ class ChatDataCollator:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train Sovogpt with a single optimizer strategy.")
-    parser.add_argument("--data", default="agent_training_data.txt", help="Training data path")
+    parser.add_argument("--data", default="data/conversational_odinglish.txt", help="Training data path")
     parser.add_argument("--output", default="./sovogpt_agent_model", help="Model output directory")
-    parser.add_argument("--epochs", type=int, default=6, help="Epoch count")
-    parser.add_argument("--batch-size", type=int, default=1, help="Per-device train batch size")
+    parser.add_argument("--epochs", type=int, default=4, help="Epoch count")
+    parser.add_argument("--batch-size", type=int, default=2, help="Per-device train batch size")
+    parser.add_argument("--learning-rate", type=float, default=5e-5, help="Learning rate")
     parser.add_argument(
         "--base-model",
         default="./sovogpt_agent_model",
@@ -137,19 +139,21 @@ def main() -> None:
     dataset = ChatMLDataset(file_path=args.data, tokenizer=tokenizer, max_length=256)
     collator = ChatDataCollator(tokenizer=tokenizer)
 
-    # Keep one clear optimizer path: AdamW (torch implementation).
+    # Clean AdamW optimizer with cosine schedule and gradient clipping
     train_args = TrainingArguments(
         output_dir=args.output,
         overwrite_output_dir=True,
         num_train_epochs=args.epochs,
         per_device_train_batch_size=args.batch_size,
         gradient_accumulation_steps=4,
-        learning_rate=1e-4,
+        learning_rate=args.learning_rate,
         save_strategy="epoch",
-        save_total_limit=2,
-        logging_steps=50,
+        save_total_limit=1,
+        logging_steps=25,
         optim="adamw_torch",
-        lr_scheduler_type="linear",
+        lr_scheduler_type="cosine",
+        warmup_ratio=0.05,
+        max_grad_norm=1.0,
         gradient_checkpointing=True,
         max_steps=args.max_steps,
     )
