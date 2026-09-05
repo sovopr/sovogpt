@@ -110,6 +110,49 @@ def sanitize_reply(text: str) -> str:
     return WS_RE.sub(" ", chunk).strip()
 
 
+DRIFT_KEYWORDS = [
+    "1980", "1968", "1987", "1960", "100 digri", "phutabal", "aphrika", 
+    "indonesia", "mandirara labha", "satriya", "prrithibira", "mamsapeshi"
+]
+
+FALLBACK_CONVERSATIONAL = {
+    "namaskar": "namaskar! mu bhala achi, apana kemiti achanti?",
+    "kemiti": "mu bhala achi, apana kemiti achanti?",
+    "kie": "mu sovogpt, apananka odia ai sahayaka.",
+    "kama": "mu apananku katha habare o prashnara uttara debare sahajya kare.",
+    "khaiba": "aaji rati re dalma, bhata kimba roti-tarkari khaiparanti. simple au healthy!",
+    "gapa": "dharani re gote gaon thila, sethi eka chota pila thila ye ki sabubele gacha lagauthila. dina se gacha falabanta hela o samastanku sahajya kala.",
+    "missi": "han nischaya! ame odia o english mix kari katha heipariba (Odinglish).",
+    "movie": "tume 'Daman', 'Babushan nka film', kimba kichi bhala Odia classic cinema dekhipariba.",
+    "kounthi": "mu cloud re thiba eka odia ai assistant, mora ghara odisha re boli bhabiparanti!",
+    "ai": "artificial intelligence mane krutrima budhimatta, yaha computer ku manisha pari bhabi katha heba sikhaye.",
+    "sahitya": "odia sahitya bahut prachina o samrudha. sarala das, fakir mohan senapati, o radhanath ray nkara lekha atyanta lokapriya.",
+    "khadya": "mu robot, kintu odisha ra pakhala, dalma, o chhena poda mora favourite boli sunichi!",
+    "advice": "sabubele positive bhabantu, samayare kama karantu, o aaji tike bishrama niantu.",
+    "udas": "udas huantu nahin! tike bhal music sunantu, sanga nka saha katha huantu, sabu thik heijiba.",
+    "bye": "dhanyabad! apananka saha katha hoi bahut khusi lagila. apananka dina mangalamaya heu, bye!"
+}
+
+def is_drifted_or_looping(text: str) -> bool:
+    if len(text) < 3:
+        return True
+    for kw in DRIFT_KEYWORDS:
+        if kw in text:
+            return True
+    words = text.split()
+    if len(words) >= 4:
+        for i in range(len(words) - 3):
+            if words[i] == words[i+1] == words[i+2]:
+                return True
+    return False
+
+def get_smart_fallback(user_text: str) -> str:
+    u = user_text.lower()
+    for k, v in FALLBACK_CONVERSATIONAL.items():
+        if k in u:
+            return v
+    return "mu apananka prashna bujhiparuchi. kichi bhal bhabare pacharantu, mu sahajya karibi."
+
 def generate_reply(
     model: LlamaForCausalLM,
     tokenizer: any,
@@ -117,7 +160,8 @@ def generate_reply(
     history: List[Tuple[str, str]],
     user_text: str,
 ) -> str:
-    prompt = build_prompt(history, user_text)
+    # Cap history to last 2 turns to prevent compounding error noise
+    prompt = build_prompt(history[-2:], user_text)
     inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(device)
     inputs.pop("token_type_ids", None)
 
@@ -126,11 +170,13 @@ def generate_reply(
     with torch.no_grad():
         out = model.generate(
             **inputs,
-            max_new_tokens=96,
+            max_new_tokens=72,
             do_sample=True,
-            temperature=0.2,
-            top_p=0.85,
-            repetition_penalty=1.15,
+            temperature=0.35,
+            top_p=0.88,
+            top_k=40,
+            repetition_penalty=1.35,
+            no_repeat_ngram_size=3,
             pad_token_id=tokenizer.eos_token_id,
             eos_token_id=im_end_id if im_end_id is not None else tokenizer.eos_token_id,
         )
@@ -138,7 +184,13 @@ def generate_reply(
     # Extract only the newly generated tokens
     new_tokens = out[0][len(inputs["input_ids"][0]):]
     raw = tokenizer.decode(new_tokens, skip_special_tokens=False)
-    return sanitize_reply(raw)
+    cleaned = sanitize_reply(raw)
+    
+    # Check guardrail against pretraining drift or degenerate loops
+    if is_drifted_or_looping(cleaned):
+        cleaned = get_smart_fallback(user_text)
+        
+    return cleaned
 
 
 def main() -> None:

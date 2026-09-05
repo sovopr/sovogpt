@@ -1,62 +1,106 @@
-# chat.py (Robust Final Version)
-from transformers import pipeline, LlamaForCausalLM, PreTrainedTokenizerFast
-import torch
+# chat.py (Robust Final Version for Sovogpt)
+import re
 import logging
+import torch
+from transformers import LlamaForCausalLM, AutoTokenizer
 
 # Silence warnings
 logging.getLogger("transformers").setLevel(logging.ERROR)
 
 print("Loading Sovogpt (Smart Edition)...")
 
-model_path = "./sovogpt_complete"
+model_path = "./sovogpt_agent_model"
+device = "mps" if torch.backends.mps.is_available() else "cpu"
 
-# FIX: We explicitly tell Python "This is a Llama model"
-# instead of asking it to guess.
 try:
     model = LlamaForCausalLM.from_pretrained(model_path)
-    tokenizer = PreTrainedTokenizerFast.from_pretrained(model_path)
-except OSError:
-    print(f"Error: Could not find {model_path}. Did you finish training?")
-    print("Trying to load ./sovogpt_smart (previous version) instead...")
-    model_path = "./sovogpt_smart"
-    model = LlamaForCausalLM.from_pretrained(model_path)
-    tokenizer = PreTrainedTokenizerFast.from_pretrained(model_path)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    model.to(device)
+    model.eval()
+    im_end_id = tokenizer.convert_tokens_to_ids("<|im_end|>")
+    print(f"Sovogpt loaded successfully on {device.upper()}!")
+except Exception as e:
+    print(f"Error loading {model_path}: {e}")
+    exit(1)
 
-generator = pipeline(
-    "text-generation", 
-    model=model, 
-    tokenizer=tokenizer,
-    device="mps" 
+SYSTEM_RULES = (
+    "Instruction: You are an Odia AI assistant. Reply in natural Odia+English "
+    "using English letters only (Roman script). Keep replies conversational."
 )
 
-base_prompt = "User: {input}\nSovogpt:"
+IDENTITY_MAP = {
+    "tume kie": "mu sovogpt, apananka odia ai sahayaka.",
+    "tumara nama kana": "mora nama sovogpt.",
+    "what is your name": "mora nama sovogpt.",
+    "namaskar": "namaskar! apana kemiti achanti?",
+    "kemiti achha": "mu bhala achi, tume kemiti achha?",
+    "kemiti acha": "mu bhala achi, tume kemiti achha?",
+    "hi": "hallo! mu sovogpt.",
+    "hello": "namaskar! mu sovogpt.",
+}
 
 print("\n--- Sovogpt is ready! ---")
 print("(Type 'quit' to exit)\n")
 
+history = []
+
 while True:
-    user_input = input("You: ")
+    try:
+        user_input = input("You: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print("\nbye!")
+        break
+        
+    if not user_input:
+        continue
     if user_input.lower() == "quit":
         break
     
-    full_prompt = base_prompt.format(input=user_input)
+    u_lower = user_input.lower()
     
-    response = generator(
-        full_prompt, 
-        max_new_tokens=60,
-        num_return_sequences=1, 
-        do_sample=True,
-        temperature=0.5, 
-        top_k=40,
-        top_p=0.9,
-        repetition_penalty=1.2,
-        pad_token_id=50256,
-        eos_token_id=50256
-    )
+    # Fast greeting / identity anchor
+    quick_reply = None
+    for k, v in IDENTITY_MAP.items():
+        if k in u_lower and len(u_lower.split()) <= 4:
+            quick_reply = v
+            break
+            
+    if quick_reply:
+        print(f"Sovogpt: {quick_reply}\n")
+        history.append((user_input, quick_reply))
+        continue
+        
+    # ChatML formatted prompt
+    prompt = f"<|im_start|>system\n{SYSTEM_RULES}<|im_end|>\n"
+    for u_old, a_old in history[-2:]:
+        prompt += f"<|im_start|>user\n{u_old}<|im_end|>\n<|im_start|>assistant\n{a_old}<|im_end|>\n"
+    prompt += f"<|im_start|>user\n{user_input}<|im_end|>\n<|im_start|>assistant\n"
     
-    full_text = response[0]['generated_text']
-    answer = full_text.split("Sovogpt:")[-1].strip()
-    if "User:" in answer:
-        answer = answer.split("User:")[0].strip()
+    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(device)
+    inputs.pop("token_type_ids", None)
+    
+    with torch.no_grad():
+        out = model.generate(
+            **inputs,
+            max_new_tokens=64,
+            do_sample=True,
+            temperature=0.35,
+            top_p=0.88,
+            top_k=40,
+            repetition_penalty=1.35,
+            no_repeat_ngram_size=3,
+            pad_token_id=tokenizer.eos_token_id,
+            eos_token_id=im_end_id if im_end_id is not None else tokenizer.eos_token_id,
+        )
+    
+    new_tokens = out[0][len(inputs["input_ids"][0]):]
+    raw = tokenizer.decode(new_tokens, skip_special_tokens=False)
+    answer = raw.split("<|im_end|>")[0].split("<|im_start|>")[0].replace("<|endoftext|>", " ").strip()
+    answer = re.sub(r"[^a-z0-9 .,?!'/-]+", " ", answer.lower())
+    answer = re.sub(r"\s+", " ", answer).strip()
+    
+    if len(answer) < 3:
+        answer = "mu apananka katha bujhiparuchi. kichi au pacharantu."
         
     print(f"Sovogpt: {answer}\n")
+    history.append((user_input, answer))
